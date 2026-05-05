@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FNV Royalty Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C8A84B;
+    --gold-light: #E8C96B;
+    --gold-dim: #7A6530;
+    --ore: #1A1208;
+    --deep: #0D0B06;
+    --slate: #2A2416;
+    --ash: #5C5240;
+    --pale: #F5EDD5;
+    --pale-dim: #C9BFA0;
+    --iron: #8B7355;
+    --vale-green: #3D7A4A;
+    --vale-green-light: #5AAD6B;
+    --kl-blue: #2C5F8A;
+    --kl-blue-light: #4A8FC4;
+    --warn: #D4623A;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--deep);
+    color: var(--pale);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRAIN OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  header {
+    border-bottom: 1px solid var(--gold-dim);
+    padding: 28px 40px 24px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    background: linear-gradient(180deg, #110E06 0%, transparent 100%);
+  }
+  .logo-area h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .logo-area h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--pale);
+    line-height: 1;
+  }
+  .header-meta {
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ash);
+    line-height: 1.8;
+  }
+  .header-meta span { color: var(--gold-dim); }
+
+  /* TAB NAV */
+  .tab-nav {
+    display: flex;
+    border-bottom: 1px solid var(--slate);
+    padding: 0 40px;
+    background: var(--ore);
+    gap: 0;
+  }
+  .tab-btn {
+    padding: 16px 28px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--ash);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .tab-btn:hover { color: var(--pale-dim); }
+  .tab-btn.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+  .tab-btn .asset-tag {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .vale-dot { background: var(--vale-green); }
+  .kl-dot { background: var(--kl-blue); }
+
+  /* PANELS */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* MAIN LAYOUT */
+  .content { padding: 0 40px 60px; }
+
+  /* HERO STAT ROW */
+  .hero-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--slate);
+    border: 1px solid var(--slate);
+    margin: 32px 0;
+  }
+  .hero-stat {
+    background: var(--ore);
+    padding: 24px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-stat::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .hero-stat.accent-vale::after { background: var(--vale-green); }
+  .hero-stat.accent-kl::after { background: var(--kl-blue); }
+  .hero-stat.accent-gold::after { background: var(--gold); }
+  .hero-stat.accent-warn::after { background: var(--warn); }
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ash);
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--pale);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ash);
+  }
+
+  /* SECTION HEADERS */
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 36px 0 16px;
+  }
+  .section-head h3 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--slate);
+  }
+
+  /* CONTRACT DETAILS BOX */
+  .contract-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+  .contract-box {
+    background: var(--ore);
+    border: 1px solid var(--slate);
+    padding: 24px;
+    position: relative;
+  }
+  .contract-box-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--slate);
+  }
+  .contract-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid #1E1A0E;
+    gap: 12px;
+  }
+  .contract-row:last-child { border-bottom: none; }
+  .cr-key {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ash);
+    flex-shrink: 0;
+  }
+  .cr-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--pale);
+    text-align: right;
+  }
+  .cr-val.highlight { color: var(--gold); }
+  .cr-val.vale-color { color: var(--vale-green-light); }
+  .cr-val.kl-color { color: var(--kl-blue-light); }
+
+  /* TIMELINE */
+  .timeline {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 28px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 6px; bottom: 6px;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--gold-dim), transparent);
+  }
+  .tl-item {
+    position: relative;
+    margin-bottom: 20px;
+    padding-left: 20px;
+  }
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -28px; top: 6px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--gold-dim);
+    background: var(--deep);
+  }
+  .tl-item.milestone::before {
+    background: var(--gold);
+    border-color: var(--gold);
+    width: 10px; height: 10px;
+    left: -29px; top: 5px;
+  }
+  .tl-year {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--gold-dim);
+    margin-bottom: 3px;
+  }
+  .tl-text {
+    font-size: 13px;
+    color: var(--pale-dim);
+    line-height: 1.5;
+  }
+  .tl-text strong { color: var(--pale); }
+
+  /* REVENUE CHART */
+  .chart-wrap {
+    background: var(--ore);
+    border: 1px solid var(--slate);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .chart-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ash);
+    margin-bottom: 20px;
+  }
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .bar-year {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ash);
+    width: 36px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--slate);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+    position: relative;
+  }
+  .bar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    width: 90px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .bar-note {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ash);
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  /* CUMULATIVE TRACKER */
+  .cumulative-viz {
+    background: var(--ore);
+    border: 1px solid var(--slate);
+    padding: 28px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+  }
+  .cum-left { flex: 1; }
+  .cum-right { width: 220px; flex-shrink: 0; }
+  .cum-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ash);
+    margin-bottom: 6px;
+  }
+  .cum-big {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .cum-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ash);
+    margin-bottom: 20px;
+  }
+  .payback-bar {
+    background: var(--slate);
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .payback-fill {
+    height: 100%;
+    border-radius: 4px;
+  }
+  .payback-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ash);
+  }
+  .breakeven-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    margin-top: 12px;
+  }
+  .badge-hit { background: rgba(61,122,74,0.25); color: var(--vale-green-light); border: 1px solid var(--vale-green); }
+  .badge-track { background: rgba(44,95,138,0.25); color: var(--kl-blue-light); border: 1px solid var(--kl-blue); }
+
+  /* ANNOTATION BLOCKS */
+  .annotation {
+    border-left: 2px solid var(--gold-dim);
+    padding: 12px 16px;
+    background: rgba(200,168,75,0.04);
+    margin-bottom: 12px;
+  }
+  .ann-head {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 5px;
+  }
+  .ann-body {
+    font-size: 12px;
+    color: var(--pale-dim);
+    line-height: 1.6;
+  }
+
+  /* COMPARE TAB */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+  .compare-card {
+    background: var(--ore);
+    border: 1px solid var(--slate);
+    padding: 24px;
+  }
+  .compare-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--slate);
+  }
+  .card-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pale);
+  }
+  .card-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ash);
+    margin-left: auto;
+  }
+
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #1A1608;
+  }
+  .score-row:last-child { border-bottom: none; }
+  .score-metric {
+    font-size: 11px;
+    color: var(--pale-dim);
+  }
+  .score-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mini-bar {
+    width: 80px;
+    height: 4px;
+    background: var(--slate);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .mini-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+  .score-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    width: 36px;
+    text-align: right;
+  }
+
+  .source-note {
+    margin-top: 40px;
+    padding: 16px;
+    border: 1px solid var(--slate);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ash);
+    line-height: 1.8;
+    letter-spacing: 0.05em;
+  }
+  .source-note strong { color: var(--gold-dim); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .tab-panel.active { animation: fadeUp 0.3s ease; }
+
+  .risk-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+  }
+  .risk-low { background: rgba(61,122,74,0.15); color: var(--vale-green-light); }
+  .risk-med { background: rgba(200,168,75,0.15); color: var(--gold); }
+  .risk-high { background: rgba(212,98,58,0.15); color: var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <h1>Franco-Nevada Corporation</h1>
+    <h2>Royalty Intelligence</h2>
+  </div>
+  <div class="header-meta">
+    <div>Source: <span>Public Filings / SEC / SEDAR+</span></div>
+    <div>Assets: <span>Vale Royalty Debentures · Kirkland Lake (Macassa)</span></div>
+    <div>Data through: <span>FY 2024</span></div>
+  </div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="showTab('vale')">
+    <span class="asset-tag vale-dot"></span>Vale Royalty
+  </button>
+  <button class="tab-btn" onclick="showTab('kl')">
+    <span class="asset-tag kl-dot"></span>Kirkland Lake
+  </button>
+  <button class="tab-btn" onclick="showTab('compare')">
+    Compare
+  </button>
+</nav>
+
+<!-- ==================== VALE TAB ==================== -->
+<div class="tab-panel active" id="tab-vale">
+<div class="content">
+
+  <div class="hero-row">
+    <div class="hero-stat accent-vale">
+      <div class="stat-label">Acquisition Cost</div>
+      <div class="stat-value">$538M</div>
+      <div class="stat-sub">Apr 16, 2021 · Secondary offering</div>
+    </div>
+    <div class="hero-stat accent-gold">
+      <div class="stat-label">Royalty Type</div>
+      <div class="stat-value" style="font-size:18px;padding-top:6px;">Net Sales Royalty</div>
+      <div class="stat-sub">Participating Debenture structure</div>
+    </div>
+    <div class="hero-stat accent-gold">
+      <div class="stat-label">Initial Cash Yield</div>
+      <div class="stat-value">10%</div>
+      <div class="stat-sub">Annualized at time of acquisition</div>
+    </div>
+    <div class="hero-stat accent-warn">
+      <div class="stat-label">Est. Breakeven</div>
+      <div class="stat-value">~2026</div>
+      <div class="stat-sub">~5 yrs from close (iron ore price-dep.)</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Contract Structure</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="contract-grid">
+    <div class="contract-box">
+      <div class="contract-box-title">Royalty Terms (Attributable to FNV)</div>
+      <div class="contract-row">
+        <span class="cr-key">Instrument</span>
+        <span class="cr-val">Participating Debentures (Debêntures Participativas)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">FNV Ownership</span>
+        <span class="cr-val highlight">14.7% of outstanding debentures</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Debentures Acquired</span>
+        <span class="cr-val">57 million debentures</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Seller</span>
+        <span class="cr-val">BNDES + Government of Brazil</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Origin Date</span>
+        <span class="cr-val">1997 (Vale privatization)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Maturity</span>
+        <span class="cr-val highlight">Life of mine (no fixed maturity)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Payment Schedule</span>
+        <span class="cr-val">Semi-annual (Mar 31 · Sep 30)</span>
+      </div>
+    </div>
+
+    <div class="contract-box">
+      <div class="contract-box-title">Royalty Rates by Asset (100% basis → FNV Attributable)</div>
+      <div class="contract-row">
+        <span class="cr-key">Northern System (iron ore)</span>
+        <span class="cr-val vale-color">1.8% → 0.264% attrib.</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">SE System (iron ore)</span>
+        <span class="cr-val vale-color">1.8% × 70% → 0.264% attrib.</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">SE System threshold</span>
+        <span class="cr-val">Begins after 1.7 Bt cumulative sales</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Copper & Gold (Sossego 50%)</span>
+        <span class="cr-val vale-color">2.5% → 0.367% attrib.</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Other minerals</span>
+        <span class="cr-val">1.0% → 0.147% attrib.</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Coverage area</span>
+        <span class="cr-val">15,600 km² of Vale mineral rights</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Reserve mine life</span>
+        <span class="cr-val">30+ yrs (Northern) · multi-decade potential</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Timeline of Key Events</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-year">1997</div>
+      <div class="tl-text"><strong>Debentures created</strong> at Vale's privatization. Designed to give original shareholders economic exposure to future mineral resource growth. Iron ore royalty embedded in the instrument from day one.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">1997 – 2020</div>
+      <div class="tl-text">Debentures held primarily by <strong>BNDES and the Brazilian government</strong>. Royalty payments flow to Brazilian sovereign holders while Vale expands its Northern and Southeastern iron ore systems.</div>
+    </div>
+    <div class="tl-item milestone">
+      <div class="tl-year">April 16, 2021</div>
+      <div class="tl-text"><strong>Franco-Nevada acquires 14.7%</strong> of outstanding debentures for $538M via secondary offering. First Royalty payment (H1 2021) estimated at $28M — paid Sep 30, 2021. Initial annualized cash yield: ~10%.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2021 – 2022</div>
+      <div class="tl-text">Northern System contributing. Southeastern System ramping capacity from 77 Mt back to 101 Mt. Revenue begins flowing but SE System not yet over threshold. Iron ore contributes ~5-6% of FNV total revenue.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2022 – 2023</div>
+      <div class="tl-text">Iron ore prices moderate from 2021 highs. Royalty revenue reflects price sensitivity — Vale royalty remains one of the larger non-precious diversified contributors. <strong>SE System threshold (1.7 Bt) not yet reached.</strong></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2024</div>
+      <div class="tl-text">FNV guidance states SE System threshold expected to be reached <strong>in latter part of 2025</strong>. Northern System benefits from strong S11D production. Revenue from Vale royalty "relatively consistent" with prior year per Q4 2024 report.</div>
+    </div>
+    <div class="tl-item milestone">
+      <div class="tl-year">Mid-2025 (est.)</div>
+      <div class="tl-text"><strong>Southeastern System contributions commence</strong> — a 35% uplift in attributable production expected once threshold is crossed. Represents a step-change in royalty economics.</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Estimated Annual Revenue to FNV</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="chart-title">Vale Royalty — FNV Estimated Annual Revenue (USD millions, derived from public filings)</div>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <span class="bar-year">2021</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:52%;background:linear-gradient(90deg,var(--vale-green),var(--vale-green-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--vale-green-light)">~$53M</span>
+        <span class="bar-note">H1 accrual $28M × 2 (partial yr)</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2022</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:85%;background:linear-gradient(90deg,var(--vale-green),var(--vale-green-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--vale-green-light)">~$82M</span>
+        <span class="bar-note">High iron ore price period</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2023</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:65%;background:linear-gradient(90deg,var(--vale-green),var(--vale-green-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--vale-green-light)">~$63M</span>
+        <span class="bar-note">Prices moderated from 2022 highs</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2024</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:62%;background:linear-gradient(90deg,var(--vale-green),var(--vale-green-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--vale-green-light)">~$60M</span>
+        <span class="bar-note">N. System strong; SE below threshold</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2025E</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));opacity:0.6"></div>
+        </div>
+        <span class="bar-label" style="color:var(--gold)">~$80–95M</span>
+        <span class="bar-note">SE System starts contributing (+35%)</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Cumulative Returns & Breakeven Analysis</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="cumulative-viz">
+    <div class="cum-left">
+      <div class="cum-label">Estimated Cumulative Revenue (2021–2024)</div>
+      <div class="cum-big" style="color:var(--vale-green-light)">~$258M</div>
+      <div class="cum-sub">vs. $538M purchase price</div>
+
+      <div class="cum-label">Recovery Progress</div>
+      <div class="payback-bar">
+        <div class="payback-fill" style="width:48%;background:linear-gradient(90deg,var(--vale-green),var(--vale-green-light))"></div>
+      </div>
+      <div class="payback-labels">
+        <span>$0</span>
+        <span style="color:var(--vale-green-light)">~$258M received (48%)</span>
+        <span>$538M breakeven</span>
+      </div>
+
+      <div class="breakeven-badge badge-hit">⧖ Projected breakeven: ~2026–2027 with SE System uplift</div>
+    </div>
+    <div class="cum-right">
+      <div class="cum-label" style="margin-bottom:12px;">Key Risk Factors</div>
+      <div class="annotation" style="margin-bottom:10px;border-color:var(--warn)">
+        <div class="ann-head" style="color:var(--warn)">Iron Ore Price</div>
+        <div class="ann-body">Revenue directly exposed to CFR China iron ore spot. A 20% drop in iron ore prices translates roughly 1:1 to royalty revenue decline.</div>
+      </div>
+      <div class="annotation" style="margin-bottom:10px;border-color:var(--gold-dim)">
+        <div class="ann-head">BRL / FX</div>
+        <div class="ann-body">Royalty denominated in BRL terms; shipping costs deducted. USD strength can modestly compress net revenue.</div>
+      </div>
+      <div class="annotation" style="border-color:var(--vale-green)">
+        <div class="ann-head" style="color:var(--vale-green-light)">SE System Unlock</div>
+        <div class="ann-body">Once 1.7 Bt threshold is passed in late 2025, royalty income structurally increases ~35%. Key catalyst.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ==================== KIRKLAND LAKE TAB ==================== -->
+<div class="tab-panel" id="tab-kl">
+<div class="content">
+
+  <div class="hero-row">
+    <div class="hero-stat accent-kl">
+      <div class="stat-label">Acquisition Cost</div>
+      <div class="stat-value">$50M</div>
+      <div class="stat-sub">Oct 31, 2013 · Financing royalty</div>
+    </div>
+    <div class="hero-stat accent-gold">
+      <div class="stat-label">Royalty Type</div>
+      <div class="stat-value" style="font-size:16px;padding-top:4px;">NSR + NPI</div>
+      <div class="stat-sub">Sliding scale NSR plus 20% NPI</div>
+    </div>
+    <div class="hero-stat accent-kl">
+      <div class="stat-label">NSR Rate Range</div>
+      <div class="stat-value">1.5–5.5%</div>
+      <div class="stat-sub">Sliding scale · gold price linked</div>
+    </div>
+    <div class="hero-stat accent-gold">
+      <div class="stat-label">Est. Breakeven</div>
+      <div class="stat-value">~2017</div>
+      <div class="stat-sub">~3–4 yrs post close at $1,200–1,300/oz</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Contract Structure</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="contract-grid">
+    <div class="contract-box">
+      <div class="contract-box-title">Original 2013 Transaction Terms</div>
+      <div class="contract-row">
+        <span class="cr-key">Counterparty</span>
+        <span class="cr-val">Kirkland Lake Gold Inc. (TSX: KGI)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Close Date</span>
+        <span class="cr-val">October 31, 2013</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Purchase Price</span>
+        <span class="cr-val highlight">US$50 million</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">NSR Rate (original)</span>
+        <span class="cr-val kl-color">2.5% NSR on all properties incl. Macassa</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Buyback option</span>
+        <span class="cr-val">3-yr option: buy back 1% for $36M (less royalties paid)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Payment option</span>
+        <span class="cr-val">FNV may receive in gold bullion or cash</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">ROFR</span>
+        <span class="cr-val">First refusal on any future royalty/stream on KL properties</span>
+      </div>
+    </div>
+
+    <div class="contract-box">
+      <div class="contract-box-title">Current Royalty Structure (Post-Amendments)</div>
+      <div class="contract-row">
+        <span class="cr-key">NSR (sliding scale)</span>
+        <span class="cr-val kl-color">1.5% to 5.5% (gold price-linked)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">NPI</span>
+        <span class="cr-val kl-color">20% Net Profit Interest</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Current operator</span>
+        <span class="cr-val">Agnico Eagle Mines (acquired KL in 2022)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Primary asset</span>
+        <span class="cr-val">Macassa Gold Mine, Kirkland Lake, Ontario</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Macassa production (2021)</span>
+        <span class="cr-val">210,192 oz gold</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Macassa target (2024+)</span>
+        <span class="cr-val">~330,000–350,000 oz (post Shaft #4)</span>
+      </div>
+      <div class="contract-row">
+        <span class="cr-key">Shaft #4 completed</span>
+        <span class="cr-val">Late 2022 — major throughput catalyst</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Timeline of Key Events</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-year">Pre-2013</div>
+      <div class="tl-text">Old Franco-Nevada had royalty exposure to the <strong>Kirkland Lake camp</strong> dating to the 1980s–90s. Pierre Lassonde and Seymour Schulich specifically targeted Timmins and Kirkland Lake as premier Ontario gold camps. These legacy royalties were folded into the Newmont portfolio and re-inherited at IPO.</div>
+    </div>
+    <div class="tl-item milestone">
+      <div class="tl-year">Oct 31, 2013</div>
+      <div class="tl-text"><strong>$50M NSR financing royalty</strong> signed with Kirkland Lake Gold. KL used proceeds to expand Macassa production capacity toward 2,200 t/day target. Original rate: 2.5% NSR. FNV's Harquail: "Great camps tend to keep on giving."</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2013 – 2016</div>
+      <div class="tl-text">Macassa ramping production. Gold prices in $1,100–1,300 range. Royalty begins flowing immediately post-close. NPI component subject to capital recoupment — NPI likely minimal in early years given Macassa's capital-intensive underground expansion.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">~2016 – 2017</div>
+      <div class="tl-text">Estimated <strong>NSR breakeven reached</strong> on the $50M cost base given Macassa's ~200,000+ oz production profile and gold at ~$1,200/oz. NSR component likely cumulative-positive by end of 2017.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2016 – 2019</div>
+      <div class="tl-text">Kirkland Lake Gold under Eric Sprott dramatically improved Macassa's high-grade mining discipline. Royalty rates expand with gold prices — sliding scale NSR becomes increasingly valuable as gold moves toward $1,400–1,500/oz.</div>
+    </div>
+    <div class="tl-item milestone">
+      <div class="tl-year">Feb 2022</div>
+      <div class="tl-text"><strong>Agnico Eagle completes merger with Kirkland Lake Gold.</strong> Macassa absorbed into Agnico Eagle's portfolio. FNV royalty transfers to new operator. Agnico focused on expanding Macassa via Shaft #4 to 1,650 t/day.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">Late 2022 – 2023</div>
+      <div class="tl-text"><strong>Shaft #4 completed</strong> plus new ventilation system. Macassa mill targeting full capacity of 1,650 t/day. Macassa achieves record throughput in Q4 2024. NPI component now more material with reduced capital overhang.</div>
+    </div>
+    <div class="tl-item milestone">
+      <div class="tl-year">Q4 2024</div>
+      <div class="tl-text">Agnico reports Macassa achieves <strong>record quarterly throughput and gold production</strong> driven by Shaft #4 benefits and new ventilation. AK deposit contributions commencing. FNV royalty at peak earning power to date.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-year">2025+</div>
+      <div class="tl-text">New paste plant commissioning (Q3 2025). AK deposit contributions scaling. Record gold prices >$2,500/oz push NSR to higher end of sliding scale. FNV's Kirkland Lake royalty increasingly significant contributor.</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Estimated Annual Revenue to FNV</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="chart-title">Kirkland Lake / Macassa — Estimated NSR Revenue to FNV (USD millions, modeled from public data)</div>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <span class="bar-year">2014</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:13%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$5M</span>
+        <span class="bar-note">First full year; ~150K oz · $1,250/oz</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2015</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:15%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$6M</span>
+        <span class="bar-note">~175K oz · $1,150/oz</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2016</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:19%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$7.5M</span>
+        <span class="bar-note">~190K oz · $1,250/oz avg</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2017</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:22%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$8.5M</span>
+        <span class="bar-note">Cumulative NSR ~$27M — approaching cost</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2019</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:30%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$12M</span>
+        <span class="bar-note">Gold hits $1,400+ · prod. expanding</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2020</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:40%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$16M</span>
+        <span class="bar-note">Gold >$1,700 avg; sliding scale lifts NSR</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2021</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:45%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$18M</span>
+        <span class="bar-note">210K oz at $1,800/oz avg</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2022</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:43%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$17M</span>
+        <span class="bar-note">Shaft #4 commissioning; prod. ~190K oz</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2023</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:50%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$20M</span>
+        <span class="bar-note">Shaft #4 operational; gold ~$1,950/oz</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2024</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:65%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+        </div>
+        <span class="bar-label" style="color:var(--kl-blue-light)">~$26M</span>
+        <span class="bar-note">Record throughput; gold >$2,300/oz avg</span>
+      </div>
+
+      <div class="bar-row">
+        <span class="bar-year">2025E</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));opacity:0.6"></div>
+        </div>
+        <span class="bar-label" style="color:var(--gold)">~$40M+</span>
+        <span class="bar-note">Gold >$3,000; AK deposit + paste plant</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h3>Cumulative Returns & Breakeven Analysis</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="cumulative-viz">
+    <div class="cum-left">
+      <div class="cum-label">Estimated Cumulative NSR Revenue (2014–2024)</div>
+      <div class="cum-big" style="color:var(--kl-blue-light)">~$136M</div>
+      <div class="cum-sub">vs. $50M purchase price · NSR component only</div>
+
+      <div class="cum-label">NSR Cost Recovery</div>
+      <div class="payback-bar">
+        <div class="payback-fill" style="width:100%;background:linear-gradient(90deg,var(--kl-blue),var(--kl-blue-light))"></div>
+      </div>
+      <div class="payback-labels">
+        <span>$0</span>
+        <span style="color:var(--kl-blue-light)">$136M received (272% of cost)</span>
+        <span>$50M</span>
+      </div>
+
+      <div class="breakeven-badge badge-track">✓ NSR Breakeven: ~2017–2018 (~4 yrs post-close)</div>
+
+      <div style="margin-top:16px">
+        <div class="cum-label">Total Return on Cost (NSR only, excl. NPI)</div>
+        <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--gold);margin-top:4px">~272%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ash);margin-top:2px">NPI returns additional but harder to isolate from filings</div>
+      </div>
+    </div>
+    <div class="cum-right">
+      <div class="cum-label" style="margin-bottom:12px;">Royalty Nuances</div>
+      <div class="annotation" style="margin-bottom:10px;border-color:var(--kl-blue)">
+        <div class="ann-head" style="color:var(--kl-blue-light)">Sliding Scale NSR</div>
+        <div class="ann-body">As gold price rises, FNV's percentage of revenue increases. At today's $3,000+/oz, FNV is likely near the 5.5% upper bound — dramatically better than the 1.5% floor.</div>
+      </div>
+      <div class="annotation" style="margin-bottom:10px;border-color:var(--gold-dim)">
+        <div class="ann-head">20% NPI</div>
+        <div class="ann-body">Net profit royalty depends on Macassa's operating margins. With AISC ~$1,400–1,600/oz and gold at $3,000+, margins are large — NPI now a meaningful adder on top of NSR.</div>
+      </div>
+      <div class="annotation" style="border-color:var(--vale-green)">
+        <div class="ann-head" style="color:var(--vale-green-light)">Operator Change</div>
+        <div class="ann-body">Agnico Eagle (2022 onward) is a significantly better-capitalized operator than Kirkland Lake Gold. Mine plan de-risked; Shaft #4 completed, AK satellite deposit adding production.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ==================== COMPARE TAB ==================== -->
+<div class="tab-panel" id="tab-compare">
+<div class="content">
+
+  <div class="hero-row">
+    <div class="hero-stat accent-vale">
+      <div class="stat-label">Vale — Cost</div>
+      <div class="stat-value">$538M</div>
+      <div class="stat-sub">2021 acquisition</div>
+    </div>
+    <div class="hero-stat accent-kl">
+      <div class="stat-label">Kirkland Lake — Cost</div>
+      <div class="stat-value">$50M</div>
+      <div class="stat-sub">2013 acquisition</div>
+    </div>
+    <div class="hero-stat accent-vale">
+      <div class="stat-label">Vale — 4-yr Cumulative</div>
+      <div class="stat-value">~$258M</div>
+      <div class="stat-sub">48% recovered · breakeven ~2026</div>
+    </div>
+    <div class="hero-stat accent-kl">
+      <div class="stat-label">KL — 11-yr Cumulative</div>
+      <div class="stat-value">~$136M</div>
+      <div class="stat-sub">272% recovered · long in profit</div>
+    </div>
+  </div>
+
+  <div class="compare-grid">
+
+    <div class="compare-card">
+      <div class="compare-card-header">
+        <div class="card-dot" style="background:var(--vale-green)"></div>
+        <div class="card-title">Vale Royalty Debentures</div>
+        <div class="card-sub">Iron Ore · Brazil · 2021</div>
+      </div>
+
+      <div class="score-row">
+        <span class="score-metric">Royalty Type</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--vale-green-light)">Net Sales (participatory debenture)</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Acquisition Year</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">2021</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Time to First Payment</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">~0 months (semi-annual, retroactive)</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Time to Breakeven (est.)</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:65%;background:var(--warn)"></div></div>
+          <span class="score-num" style="color:var(--warn)">~5-6 yrs</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Commodity Exposure</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Iron ore (primary) + Cu/Au</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Commodity Cyclicality</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:80%;background:var(--warn)"></div></div>
+          <span class="score-num" style="color:var(--warn)">High</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Operator Quality</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:90%;background:var(--vale-green-light)"></div></div>
+          <span class="score-num" style="color:var(--vale-green-light)">Tier 1</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Reserve Life</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:100%;background:var(--vale-green-light)"></div></div>
+          <span class="score-num" style="color:var(--vale-green-light)">30-50+ yrs</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Upside Catalyst</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold)">SE System unlock (~2025) +35%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Jurisdiction Risk</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:60%;background:var(--gold)"></div></div>
+          <span class="score-num" style="color:var(--gold)">Med</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="compare-card">
+      <div class="compare-card-header">
+        <div class="card-dot" style="background:var(--kl-blue)"></div>
+        <div class="card-title">Kirkland Lake / Macassa</div>
+        <div class="card-sub">Gold · Ontario, Canada · 2013</div>
+      </div>
+
+      <div class="score-row">
+        <span class="score-metric">Royalty Type</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--kl-blue-light)">Sliding NSR (1.5–5.5%) + 20% NPI</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Acquisition Year</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">2013</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Time to First Payment</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Immediate (producing mine at close)</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Time to Breakeven (est.)</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:35%;background:var(--vale-green-light)"></div></div>
+          <span class="score-num" style="color:var(--vale-green-light)">~4 yrs</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Commodity Exposure</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Gold (100%)</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Commodity Cyclicality</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:45%;background:var(--gold)"></div></div>
+          <span class="score-num" style="color:var(--gold)">Med</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Operator Quality</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:95%;background:var(--kl-blue-light)"></div></div>
+          <span class="score-num" style="color:var(--kl-blue-light)">Tier 1</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Reserve Life</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:65%;background:var(--kl-blue-light)"></div></div>
+          <span class="score-num" style="color:var(--kl-blue-light)">15-20+ yrs</span>
+        </div>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Upside Catalyst</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold)">AK deposit, paste plant, gold price</span>
+      </div>
+      <div class="score-row">
+        <span class="score-metric">Jurisdiction Risk</span>
+        <div class="score-track">
+          <div class="mini-bar"><div class="mini-fill" style="width:10%;background:var(--vale-green-light)"></div></div>
+          <span class="score-num" style="color:var(--vale-green-light)">Low</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-head">
+    <h3>Key Structural Differences</h3>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="annotation" style="margin-bottom:12px">
+    <div class="ann-head">Scale vs. Simplicity</div>
+    <div class="ann-body">Vale is a $538M macro bet on iron ore fundamentals, priced like an infrastructure yield. Kirkland Lake was a classic FNV exploration financing royalty — $50M to a mid-tier miner in exchange for perpetual upside on one of the world's best gold camps. Completely different thesis, both consistent with FNV's playbook.</div>
+  </div>
+  <div class="annotation" style="margin-bottom:12px">
+    <div class="ann-head">NSR vs. Debenture Structure</div>
+    <div class="ann-body">Kirkland's sliding NSR + NPI is a direct royalty interest — FNV earns more per ounce as gold prices rise. The Vale debenture is a fixed-rate net sales royalty on gross revenue, paid semi-annually, more like a bond with commodity-linked coupons and no maturity. Neither is "better" — they serve different portfolio functions.</div>
+  </div>
+  <div class="annotation" style="margin-bottom:12px">
+    <div class="ann-head">Return Profile</div>
+    <div class="ann-body">Kirkland Lake at ~272% return on cost (NSR only) in 11 years is an exemplary royalty. Vale at ~48% in 4 years is tracking similarly but at a much larger scale — once the SE System unlocks, the pace accelerates materially. Both demonstrate the FNV model: spend when others won't, collect for decades.</div>
+  </div>
+  <div class="annotation">
+    <div class="ann-head">Data Limitations</div>
+    <div class="ann-body">Revenue figures for Kirkland Lake are modeled estimates based on operator-reported production, gold price averages, and disclosed royalty rate ranges. FNV does not break out individual royalty revenue for smaller assets in quarterly filings. Vale figures from 2021–2024 are derived from semi-annual debenture accrual disclosures and quarterly diversified asset revenue figures. All figures should be treated as informed estimates for analytical purposes.</div>
+  </div>
+
+  <div class="source-note">
+    <strong>Sources:</strong> Franco-Nevada 40-F / 6-K filings (SEC / SEDAR+) · Kirkland Lake Gold press release Oct 29, 2013 · FNV press releases Apr 19, 2021 (Vale acquisition) · FNV quarterly earnings releases 2021–2025 · FNV 2023 Annual Report · FNV Q3 2024 and Q4 2024 releases · Wikipedia FNV entry · FNV Our History page · This dashboard is for informational analysis only. Revenue figures marked with ~ are modeled estimates derived from public disclosures and should not be cited as audited financial data.
+  </div>
+
+</div>
+</div>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
